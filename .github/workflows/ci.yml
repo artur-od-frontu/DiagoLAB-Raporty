@@ -25,6 +25,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Keszowanie cache budowania Next.js
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+
       - name: Instalacja zależności (reprodukowalna)
         run: npm ci
 
@@ -40,8 +48,17 @@ jobs:
       - name: Build produkcyjny
         run: npm run build
         env:
-          # Build nie wymaga żywej bazy — wszystkie strony DB są dynamiczne.
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/build_placeholder
+
+      - name: Upload skompilowanej aplikacji (Oszczędność czasu dla E2E)
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: |
+            .next
+            package.json
+            package-lock.json
+          retention-days: 1
 
       - name: Weryfikacja sekretów (gitleaks-style quick scan)
         run: |
@@ -54,7 +71,7 @@ jobs:
   e2e:
     name: Testy E2E (Playwright · PostgreSQL)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     needs: quality-gates
 
     services:
@@ -78,14 +95,38 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
 
-      - run: npm ci
-      - name: Schemat bazy (drizzle-kit push)
-        run: npx drizzle-kit push
-      - name: Build produkcyjny
-        run: npm run build
+      - name: Pobranie gotowego buildu Next.js
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build
 
-      - name: Przeglądarki Playwright
+      - name: Instalacja zależności produkcyjnych
+        run: npm ci
+
+      - name: Weryfikacja spójności schematu Drizzle (Zabezpieczenie przed dryfem)
+        run: npx drizzle-kit check
+
+      - name: Aplikowanie schematu bazy danych
+        run: npx drizzle-kit push
+
+      - name: Pobranie wersji Playwright ze środowiska
+        id: playwright-version
+        run: echo "version=$(npx playwright --version | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Keszowanie binarów Playwright
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Przeglądarki Playwright (Instalacja tylko przy braku keszu)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Instalacja systemowych zależności Playwright (Wymagane zawsze)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Testy E2E
         run: npx playwright test
@@ -96,7 +137,3 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
-
-  # Brama jakości: PR nie przechodzi, gdy którakolwiek bramka upadnie.
-  # Zalecane: w ustawieniach repo dodać oba joby jako required status checks
-  # + branch protection na main (wymagany review + zielone CI).
