@@ -1,0 +1,21 @@
+name: DiagoLAB Configuration
+version: 0.0.1
+schema: v1
+
+models:
+  - name: gemini-3.6-flash
+    title: Google Gemini 3.6 Flash (Darmowy)
+    provider: google
+    apiKey: ${AQ.Ab8RN6IGlEypRGFhVy8rZYV84RKnEJE3Rd1fRwzMjLW4n0mw5g}
+
+slashCommands:
+  - name: git
+    description: Zaproponuj strategię git, nazwę gałęzi i commit
+    prompt: |
+      Przeanalizuj moje obecne zmiany (git diff). Odpowiedz krótko i konkretnie w 3 punktach:
+      1. **Rekomendacja:** [Napisz, czy powinienem zrobić commit do obecnej gałęzi, czy założyć nową i dlaczego]
+      2. **Proponowana nazwa gałęzi:** [Sugerowany format: feature/krotki-opis lub bugfix/krotki-opis]
+      3. **Opis commita:** [Zgodny z Conventional Commits, np. fix(panel): ...]
+
+contextProviders:
+  - name: diff
