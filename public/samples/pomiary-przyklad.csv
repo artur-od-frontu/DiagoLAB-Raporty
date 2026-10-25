@@ -1,0 +1,13 @@
+Lp;Lokalizacja;Obwód;Charakterystyka;In [A];RCD [mA];Zs [Ω];Riso [MΩ];Ciągłość PE [Ω];Czas RCD [ms];Prąd wyzwalania RCD [mA]
+LP-01;Szafa główna RG;Zasilanie WLZ;C;32;;0,42 Ω;240;0,12;;
+LP-02;Strefa A — linia 1;Gniazda siłowe 400V;C;32;;0,58 Ω;180;0,21;;
+LP-03;Strefa A — linia 1;Gniazda 230V;B;16;30;1,94 Ω;320;0,34;24 ms;19,8 mA
+LP-04;Strefa A — linia 2;Gniazda 230V;B;16;30;2,12 Ω;260;0,41;27 ms;21,4 mA
+LP-05;Strefa B — lakiernia;Gniazda 230V — kompresor;B;16;30;3,41 Ω;95;0,62;31 ms;22,6 mA
+LP-06;Strefa B — lakiernia;Oświetlenie LED;B;10;30;1,18 Ω;1,24;0,38;254 ms;23,1 mA
+LP-07;Magazyn wysoki;Gniazda 230V — ładowarki;B;16;30;2,36 Ω;210;0,78;25 ms;18,9 mA
+LP-08;Magazyn wysoki;Oświetlenie awaryjne;B;10;30;1,42 Ω;440;0,29;22 ms;19,2 mA
+LP-09;Część socjalna;Gniazda 230V — kuchnia;B;16;30;1,76 Ω;380;0,33;23 ms;17,5 mA
+LP-10;Część socjalna;Gniazda 230V — szatnie;B;16;30;2,04 Ω;295;0,40;26 ms;20,2 mA
+LP-11;Serwerownia;Gniazda UPS;C;16;30;0,89 Ω;520;0,18;21 ms;18,1 mA
+LP-12;Dach;Klimatyzacja;C;25;;0,68 Ω;260;0,44;;

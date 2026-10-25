@@ -1,0 +1,60 @@
+# DiagoLAB Raporty+ — Docker Compose
+# ====================================
+# Jednoprzyciskowy start: docker compose up --build
+#
+# Wymagania: Docker, Docker Compose v2
+# Po starcie: http://localhost:3000
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - diagolab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/app_db
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SHARE_TOKEN_SECRET: ${SHARE_TOKEN_SECRET:-dev-share-secret-change-in-production}
+
+      # Opcjonalne — odkomentuj i ustaw klucze produkcyjne:
+      # STRIPE_SECRET_KEY: sk_live_...
+      # STRIPE_WEBHOOK_SECRET: whsec_...
+      # SMTP_URL: smtps://user:pass@smtp.example.com:465
+      # SMTP_FROM: DiagoLAB Raporty+ <noreply@diagolab.pl>
+      # SMS_PROVIDER_KEY: ...
+      # OPENAI_API_KEY: sk-...
+      # AI_MODEL: gpt-4o-mini
+
+  # Jednorazowy kontener do migracji schematu bazy
+  migrate:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/app_db
+    command: npx drizzle-kit push
+    restart: "no"
+
+volumes:
+  diagolab_pgdata:

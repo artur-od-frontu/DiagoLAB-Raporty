@@ -1,0 +1,102 @@
+name: CI — DiagoLAB Raporty+
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Typecheck · Testy · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalacja zależności (reprodukowalna)
+        run: npm ci
+
+      - name: Generowanie typów routingu Next.js
+        run: npx next typegen
+
+      - name: TypeScript — zero błędów
+        run: npx tsc --noEmit --pretty false
+
+      - name: Testy jednostkowe (Vitest)
+        run: npx vitest run --reporter=dot
+
+      - name: Build produkcyjny
+        run: npm run build
+        env:
+          # Build nie wymaga żywej bazy — wszystkie strony DB są dynamiczne.
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/build_placeholder
+
+      - name: Weryfikacja sekretów (gitleaks-style quick scan)
+        run: |
+          if grep -rInE "(sk-[A-Za-z0-9]{20,}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----)" \
+            --include="*.ts" --include="*.tsx" --include="*.js" src/ ; then
+            echo "::error::Wykryto potencjalny sekret w kodzie!"; exit 1;
+          fi
+          echo "Brak sekretów w kodzie — OK"
+
+  e2e:
+    name: Testy E2E (Playwright · PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: quality-gates
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/app_db
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+
+      - run: npm ci
+      - name: Schemat bazy (drizzle-kit push)
+        run: npx drizzle-kit push
+      - name: Build produkcyjny
+        run: npm run build
+
+      - name: Przeglądarki Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Testy E2E
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  # Brama jakości: PR nie przechodzi, gdy którakolwiek bramka upadnie.
+  # Zalecane: w ustawieniach repo dodać oba joby jako required status checks
+  # + branch protection na main (wymagany review + zielone CI).
