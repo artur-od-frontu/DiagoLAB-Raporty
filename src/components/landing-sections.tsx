@@ -586,7 +586,7 @@ function Section({
 }) {
   return (
     <section id={id} className="relative border-t border-line">
-      <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 lg:py-24">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 lg:py-24">
         <Reveal>
           <p className="kicker">{kicker}</p>
           <h2 className="display-1 text-[clamp(26px,3.4vw,40px)] mt-4 max-w-3xl">{title}</h2>

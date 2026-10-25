@@ -6,6 +6,7 @@ import { getSessionUser, audit } from "@/lib/auth";
 import { db } from "@/db";
 import { installerProfiles } from "@/db/schema";
 import { LogoUpload } from "@/components/logo-upload";
+import { InstrumentsManager } from "@/components/instruments-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ async function saveProfile(formData: FormData) {
         certificateNo: v("certificateNo"),
         qualificationScope: v("qualificationScope"),
         certificateValidUntil: v("certificateValidUntil"),
+        instruments: formData.get("instruments") ? JSON.parse(String(formData.get("instruments"))) : null,
         updatedAt: new Date(),
       },
     });
@@ -120,6 +122,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <p className="font-mono text-[10px] text-faint mt-1.5">podgląd, nie kwalifikowany podpis elektroniczny — ETAP</p>
           </div>
         </div>
+
+        <InstrumentsManager initialInstruments={profile?.instruments ?? []} />
 
         <button type="submit" className="btn btn-primary mt-8">Zapisz profil</button>
       </form>

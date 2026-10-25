@@ -86,6 +86,15 @@ describe("renderReportPdfHtml", () => {
     expect(html).toContain("polyline"); // historia Smart Compare+
   });
 
+  it("pokazuje protokół oględzin, jeśli dostępny", () => {
+    const withInsp = renderReportPdfHtml({
+      payload: { ...payload, meta: { ...payload.meta, inspectionChecklist: { noVisibleDamage: true, circuitLabelsOk: false, notes: "Brak schematów" } as any } },
+      qrDataUrl: null, sha256: ""
+    });
+    expect(withInsp).toContain("Protokół Oględzin");
+    expect(withInsp).toContain("Brak schematów");
+  });
+
   it("osadza hash SHA-256 zbioru danych", () => {
     expect(html).toContain("ab".repeat(32));
   });

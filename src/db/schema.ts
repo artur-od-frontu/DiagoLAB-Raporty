@@ -107,6 +107,8 @@ export const installerProfiles = pgTable("installer_profiles", {
   logoData: text("logo_data"),
   logoMime: text("logo_mime"),
   signaturePath: text("signature_path"),
+  /** Zapisane mierniki w formacie JSON (nazwa, nr seryjny, nr wzorcowania, ważność wzorcowania) */
+  instruments: jsonb("instruments").$type<{ name: string; serialNo: string; calibrationNo: string; calibrationValidUntil: string; }[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

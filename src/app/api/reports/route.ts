@@ -49,6 +49,10 @@ export async function POST(req: Request) {
     objectAddress?: string;
     clientName?: string;
     instrument?: string;
+    instruments?: string[];
+    inspectionChecklist?: Record<string, boolean | string>;
+    weather?: string;
+    globalZone?: string;
   };
   try {
     body = await req.json();
@@ -150,6 +154,12 @@ export async function POST(req: Request) {
   // --- Meta raportu z profilu instalatora ---
   const [profile] = await db.select().from(installerProfiles).where(eq(installerProfiles.userId, user.id)).limit(1);
   const installerName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || user.email;
+  
+  // Zbieramy mierniki z profilu wg dostarczonych ID
+  const allInst = (profile?.instruments ?? []) as import("@/components/instruments-manager").InstrumentItem[];
+  const selectedInstIds = body.instruments ?? [];
+  const instrumentsDetails = allInst.filter(i => selectedInstIds.includes(i.id));
+
   const meta = {
     reportNumber: number,
     date: now.toISOString().slice(0, 10),
@@ -163,9 +173,11 @@ export async function POST(req: Request) {
       certificateNo: profile?.certificateNo ?? "—",
       scope: profile?.qualificationScope ?? "—",
     },
-    instrument: body.instrument?.trim() || "—",
+    instrument: instrumentsDetails.length ? instrumentsDetails.map(i => i.name).join(", ") : "—",
+    instrumentsDetails,
+    inspectionChecklist: body.inspectionChecklist,
     source: { fileName: body.sourceFileName?.slice(0, 200) ?? "—", importedAt: now.toISOString() },
-    weather: "—",
+    weather: body.weather ?? "—",
   };
 
   const [created] = await db

@@ -28,30 +28,145 @@ export type FindingCategory = "KRYTYCZNE" | "OSTRZEŻENIE" | "ZALECENIE" | "INFO
 
 export type BreakerCurve = "B" | "C" | "D";
 
+/**
+ * Układ sieciowy instalacji — wpływa na metodę oceny impedancji pętli.
+ * PN-HD 60364-1:2010, PN-HD 60364-4-41:2017
+ *
+ * TN-C / TN-S / TN-C-S — najczęstsze w Polsce (PEN/PE+N)
+ * TT — osobne uziemienie odbiornika; ocena przez RCD (Ra × IΔn ≤ 50V)
+ * IT — bez bezpośredniego połączenia z ziemią; monitoring izolacji
+ */
+export type NetworkSystem = "TN" | "TN-S" | "TN-C-S" | "TN-C" | "TT" | "IT";
+
+/**
+ * Typ RCD — wpływa na maksymalny czas zadziałania i zakres prądów.
+ * PN-EN IEC 61008-1:2019 / PN-EN IEC 61009-1:2019
+ *
+ * AC  — reaguje wyłącznie na prąd przemienny sinusoidalny
+ * A   — prąd przemienny + prąd pulsujący DC (wymagany w łazienkach, instalacjach PV, EV)
+ * B   — prąd przemienny + pulsujący DC + stały DC (warsztaty, instalacje przemysłowe)
+ * F   — prąd przemienny + DC pulsujący + prądy o częstotliwości 1kHz (AGD z inwerterami)
+ * S   — selektywny z opóźnieniem (50ms) — rozdzielnice, koordynacja zabezpieczeń
+ */
+export type RcdType = "AC" | "A" | "B" | "F" | "S";
+
+/**
+ * Napięcie pomiarowe izolacji — wpływa na minimalny próg Riso.
+ * PN-HD 60364-6:2016 Tablica 6.1
+ */
+export type InsulationTestVoltage = 250 | 500 | 1000;
+
 export interface Protection {
   /** Charakterystyka wyłącznika nadmiarowoprądowego */
   curve: BreakerCurve;
   /** Prąd znamionowy [A] */
   inA: number;
-  /** Prąd różnicowy RCD [mA] — jeśli obwód objęty ochroną różnicowoprądową */
+  /** Prąd różnicowy RCD [mA] */
   rcdmA?: number | null;
+  /** Typ wyłącznika RCD — wpływa na wymagany czas zadziałania */
+  rcdType?: RcdType | null;
+}
+
+/**
+ * Kontekst obwodu — parametry instalacji istotne dla oceny normatywnej.
+ * Jeśli nie podano, silnik stosuje ostrożne wartości domyślne (TN, 230V).
+ */
+export interface CircuitContext {
+  /** Układ sieciowy — domyślnie TN (najczęstszy w Polsce) */
+  networkSystem?: NetworkSystem;
+  /** Napięcie fazowe [V] — 230V dla sieci 230/400V */
+  uoV?: number;
+  /** Napięcie pomiarowe Riso [V DC] — wpływa na minimalny próg */
+  insulationTestVoltageV?: InsulationTestVoltage;
+  /** Obwód końcowy (gniazdo/oprawy) vs rozdzielnica — wpływa na wymagany czas wyłączenia */
+  isFinalCircuit?: boolean;
+  /** Napięcie nominalne obwodu [V] — dla TT/IT do obliczenia Ra */
+  un?: number;
+}
+
+/**
+ * Typ pomieszczenia / strefy — wpływa na zaostrzenie kryteriów.
+ * PN-HD 60364 sekcje 700 (arkusze szczegółowe).
+ */
+export type ZoneType =
+  | "STANDARD"           // pomieszczenie standardowe
+  | "LAZIENKA"           // łazienka / natrysk — PN-HD 60364-7-701
+  | "BASEN"              // baseny, sauny — PN-HD 60364-7-702
+  | "MOKRE"              // pomieszczenia o podwyższonej wilgotności
+  | "MEDYCZNE"           // pomieszczenia medyczne — PN-IEC 60364-7-710
+  | "BUDOWA"             // place budowy — PN-HD 60364-7-704
+  | "ROLNICTWO"          // obiekty rolnicze — PN-HD 60364-7-705
+  | "EX"                 // strefy zagrożone wybuchem — PN-EN 60079
+  | "ZEWNETRZNE";        // instalacje zewnętrzne
+
+/**
+ * Dane przyrządu pomiarowego — walidacja wzorcowania.
+ * Zgodnie z PN-EN 61557 i wytycznymi SEP.
+ */
+export interface Instrument {
+  name: string;          // np. "Sonel MPI-535"
+  serialNo: string;      // numer seryjny
+  calibrationNo: string; // nr świadectwa wzorcowania
+  calibrationValidUntil: string; // ISO date
+}
+
+/**
+ * Checklist oględzin — PN-HD 60364-6 pkt 6.4.1
+ * Musi być wypełniony przed przystąpieniem do pomiarów.
+ */
+export interface InspectionChecklist {
+  /** Brak widocznych uszkodzeń mechanicznych */
+  noVisibleDamage: boolean;
+  /** Czytelne oznaczenia obwodów w rozdzielnicach */
+  circuitLabelsOk: boolean;
+  /** Oznakowanie zacisków PE/N */
+  peNmarkingsOk: boolean;
+  /** Poprawność doboru aparatury do przekrojów */
+  protectionMatchesWiring: boolean;
+  /** Ciągłość wizualna połączeń wyrównawczych */
+  bondingVisualOk: boolean;
+  /** Obecność schematów rozdzielnic */
+  schematicsPresent: boolean;
+  /** Uwagi do oględzin (tekst swobodny) */
+  notes?: string;
 }
 
 export interface RawPoint {
-  code: string;            // oznaczenie punktu pomiarowego, np. LP-03
-  location: string;        // pomieszczenie / strefa
-  circuit: string;         // nazwa obwodu
+  code: string;
+  location: string;
+  circuit: string;
   protection: Protection;
-  /** Impedancja pętli zwarcia Zs [Ω] */
+  /** Kontekst normatywny obwodu — opcjonalny, domyślnie TN 230V */
+  context?: CircuitContext;
+  /** Typ pomieszczenia/strefy — wpływa na zaostrzenie wymagań */
+  zoneType?: ZoneType;
+
+  /** Impedancja pętli zwarcia Zs [Ω] — PN-HD 60364-6:2016 */
   zsOhm?: number | null;
-  /** Rezystancja izolacji [MΩ] (napięcie pomiarowe 500 V DC) */
+  /** Rezystancja uziemienia Ra [Ω] — tylko dla układu TT */
+  raOhm?: number | null;
+  /** Rezystancja izolacji [MΩ] — PN-HD 60364-6:2016 Tab. 6.1 */
   risoMOhm?: number | null;
-  /** Ciągłość przewodu ochronnego [Ω] */
+  /** Napięcie pomiarowe Riso rzeczywiście użyte [V DC] */
+  risoTestVoltageV?: InsulationTestVoltage | null;
+  /** Ciągłość przewodu ochronnego [Ω] — SEP-E-004 */
   continuityOhm?: number | null;
-  /** Czas zadziałania RCD przy 1×IΔn [ms] */
+  /** Czas zadziałania RCD przy 1×IΔn [ms] — PN-EN IEC 61008-1 */
   rcdTripMs?: number | null;
   /** Prąd wyzwalania RCD [mA] */
   rcdTripmA?: number | null;
+  /** Czas zadziałania przy 2×IΔn [ms] — dla weryfikacji selektywności */
+  rcdTrip2xMs?: number | null;
+  /** Czas zadziałania przy 5×IΔn [ms] — wymagany dla typu S */
+  rcdTrip5xMs?: number | null;
+  /** Napięcie dotykowe oczekiwane Uc [V] — obliczane lub mierzone */
+  touchVoltageV?: number | null;
+  /** Wynik testu mechanicznego RCD (przycisk TEST) */
+  rcdTestButtonOk?: boolean | null;
+  /** Rezystancja uziomu odgromowego [Ω] — PN-EN 62305 */
+  earthResistanceOhm?: number | null;
+  /** Ciągłość zwodów/połączeń odgromowych [Ω] */
+  lightningContinuityOhm?: number | null;
 }
 
 export interface MeasureVerdict {
@@ -84,6 +199,45 @@ export interface Finding {
   action: string;
 }
 
+/**
+ * Priorytet usterki — matryca decyzyjna zgodna ze specyfikacją.
+ * 🔴 PILNE — zagrożenie życia/pożarowe, natychmiastowe wyłączenie
+ * 🟡 NAPRAWA — niezgodność z normami, do usunięcia bieżąco
+ * 🔵 SUGESTIA — dobre praktyki SEP, rekomendacja modernizacji
+ */
+export type FaultPriority = "PILNE" | "NAPRAWA" | "SUGESTIA";
+
+export interface Fault {
+  pointCode: string;
+  parameter: string;
+  measuredValue: string;
+  allowedValue: string;
+  normReference: string;
+  priority: FaultPriority;
+  description: string;
+}
+
+/**
+ * Orzeczenie końcowe — binarne SPEŁNIA / NIE SPEŁNIA.
+ * Jeśli choć jeden obwód jest CRITICAL → NIE SPEŁNIA.
+ */
+export interface FinalVerdict {
+  /** SPEŁNIA / NIE SPEŁNIA / WARUNKOWO */
+  status: "SPEŁNIA" | "NIE_SPEŁNIA" | "WARUNKOWO";
+  /** Tekst orzeczenia do raportu */
+  statement: string;
+  /** Termin następnego badania (ISO date) */
+  nextInspectionDate: string;
+  /** Tabela usterek (pusta jeśli SPEŁNIA) */
+  faults: Fault[];
+}
+
+export interface InstrumentValidation {
+  valid: boolean;
+  instrument: Instrument;
+  error?: string;
+}
+
 export interface AnalysisResult {
   algorithmVersion: string;
   criteriaSet: string;
@@ -98,6 +252,10 @@ export interface AnalysisResult {
   };
   findings: Finding[];
   verdictCounts: Record<MeasureStatus, number>;
+  /** Orzeczenie końcowe wg matrycy decyzyjnej */
+  finalVerdict: FinalVerdict;
+  /** Walidacja przyrządów pomiarowych */
+  instrumentValidation?: InstrumentValidation[];
 }
 
 export interface HistorySample {
@@ -118,22 +276,101 @@ export function curveMultiplier(curve: BreakerCurve): number {
   }
 }
 
-/** Maksymalna dopuszczalna impedancja pętli zwarcia: Zs ≤ Uo / Ia. */
-export function zsLimitOhm(protection: Protection, uoV = 230): number {
+/**
+ * Współczynnik korekcyjny temperatury i niepewności pomiaru.
+ * Zgodnie z wytycznymi SEP/SEEP: k = 2/3 ≈ 0.667 (konserwatywne)
+ * lub k = 0.8 (powszechnie stosowane w praktyce pomiarowej).
+ *
+ * Wartość zmierzona Zs mnoży się przez k, co daje margines bezpieczeństwa
+ * uwzględniający nagrzewanie przewodów do temperatury roboczej
+ * (70°C dla PVC) vs temperatura otoczenia (~20°C) w momencie pomiaru.
+ */
+export const ZS_SAFETY_FACTOR = 0.8;
+
+/**
+ * Maksymalna dopuszczalna impedancja pętli zwarcia.
+ *
+ * TN/TN-S/TN-C-S: Zs_zmierzona ≤ (Uo / Ia) × k
+ *   gdzie k = ZS_SAFETY_FACTOR = 0.8 (wytyczne SEP)
+ *
+ * PN-HD 60364-4-41:2017 pkt 411.4.4
+ */
+export function zsLimitOhm(protection: Protection, uoV = 230, safetyFactor = ZS_SAFETY_FACTOR): number {
   const ia = curveMultiplier(protection.curve) * protection.inA;
-  return +(uoV / ia).toFixed(3);
+  return +((uoV / ia) * safetyFactor).toFixed(3);
 }
 
-/** Progi wg rodzaju pomiaru (PN-HD 60364-6, instalacja 230/400 V). */
+/**
+ * Limit rezystancji uziemienia Ra dla układu TT.
+ * Warunek: Ra × IΔn ≤ 50 V — PN-HD 60364-4-41:2017 pkt 411.5.3
+ * IΔn w amperach.
+ */
+export function raLimitOhm(rcdmA: number): number {
+  return +(50 / (rcdmA / 1000)).toFixed(1);
+}
+
+/**
+ * Minimalny próg rezystancji izolacji.
+ * PN-HD 60364-6:2016 Tablica 6.1
+ *
+ * Napięcie < 50V (SELV/PELV) — 500V DC → ≥ 0,5 MΩ
+ * Napięcie ≤ 500V (230/400V) — 500V DC → ≥ 1 MΩ   ← standard w Polsce
+ * Napięcie > 500V             — 1000V DC → ≥ 1 MΩ
+ */
+export function risoMinMOhm(testVoltageV?: InsulationTestVoltage | null, circuitVoltageV = 230): number {
+  if (circuitVoltageV < 50) return 0.5;
+  if (testVoltageV === 250) return 0.5;  // SELV/PELV mierzone 250V DC
+  return 1.0;  // standard dla instalacji 230/400V
+}
+
+/**
+ * Maksymalny czas zadziałania RCD.
+ * PN-EN IEC 61008-1:2019 / PN-HD 60364-4-41:2017 Tablica 41.1
+ *
+ * Typ AC / A / F — obwód końcowy 230V TN: ≤ 0,4s
+ *                  obwód końcowy 230V TT: ≤ 0,3s (przy RCD jako ochrona)
+ *                  rozdzielnica TN:       ≤ 5s (dopuszczalne)
+ * Typ S (selektywny) — ≤ 0,5s (ale min. 0,06s opóźnienia)
+ *
+ * W praktyce dla RCD ochronnych przyjmujemy ≤ 300ms jako bezpieczne.
+ */
+export function rcdMaxTimeMs(rcdType?: RcdType | null, isFinalCircuit = true, networkSystem?: NetworkSystem): number {
+  if (rcdType === "S") return 500;    // selektywny — maks. 500ms wg IEC 61008
+  if (!isFinalCircuit) return 5000;  // rozdzielnica — dłuższy czas dopuszczalny
+  if (networkSystem === "TT") return 300;  // TT — ≤ 0,3s przy RCD jako ochrona
+  return 400;  // TN — ≤ 0,4s (norma), przyjmujemy 300ms jako standard praktyczny
+}
+
+/**
+ * Progi normatywne i praktyczne.
+ * Wartości oparte na: PN-HD 60364-6:2016, PN-HD 60364-4-41:2017,
+ * PN-EN IEC 61008-1:2019, SEP-E-004, zaleceniach SEP.
+ */
 export const THRESHOLDS = {
-  risoMinMOhm: 1.0,          // Riso ≥ 1 MΩ przy 500 V DC
-  risoWarnBand: 1.5,         // strefa "blisko progu"
-  continuityMaxOhm: 1.0,     // ciągłość przewodu ochronnego
+  /** Riso ≥ 1 MΩ przy 500 V DC (instalacje 230/400V) */
+  risoMinMOhm: 1.0,
+  /** Strefa ostrzegawcza — bliżej progu niż 1,5× */
+  risoWarnBand: 1.5,
+  /** Ciągłość PE: zalecenie SEP — max 1 Ω dla typowych tras */
+  continuityMaxOhm: 1.0,
+  /** Strefa ostrzegawcza ciągłości — powyżej 0,7 Ω warto sprawdzić */
   continuityWarnOhm: 0.7,
-  rcdTimeMaxMs: 300,         // czas zadziałania przy 1×IΔn (typ ogólny)
-  rcdTimeWarnRatio: 0.8,     // ostrzeżenie powyżej 80% limitu
-  rcdTripLowRatio: 0.5,      // RCD nie może zadziałać poniżej 0,5×IΔn
-  zsWarnRatio: 0.9,          // ostrzeżenie powyżej 90% limitu Zs
+  /** Czas RCD przy 1×IΔn — ogólny typ AC/A: ≤ 300ms (praktyczny limit) */
+  rcdTimeMaxMs: 300,
+  /** Ostrzeżenie powyżej 80% limitu czasu */
+  rcdTimeWarnRatio: 0.8,
+  /** RCD nie może wyzwalać poniżej 0,5×IΔn — PN-EN IEC 61008-1 */
+  rcdTripLowRatio: 0.5,
+  /** Ostrzeżenie Zs przy 90% limitu — margines dla niepewności pomiaru */
+  zsWarnRatio: 0.9,
+  /** Maks. napięcie dotykowe bezpieczne: 50V AC — PN-HD 60364-4-41 */
+  touchVoltageMaxV: 50,
+  /** Napięcie dotykowe w strefach mokrych i medycznych: 25V AC */
+  touchVoltageWetMaxV: 25,
+  /** Czas zadziałania RCD przy 5×IΔn (typ S) ≤ 40ms — PN-EN 61008 */
+  rcdTime5xMaxMs: 40,
+  /** Czas zadziałania RCD przy 2×IΔn ≤ 150ms */
+  rcdTime2xMaxMs: 150,
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -141,10 +378,15 @@ export const THRESHOLDS = {
 /* ------------------------------------------------------------------ */
 
 const UNIT_SCALE: Record<string, number> = {
-  "mω": 0.001, "mohm": 0.001,
-  "kω": 1000, "kohm": 1000,
+  // milioomy — muszą być PRZED "ω" żeby nie zjadały sufiksu
+  "mω": 0.001, "mohm": 0.001, "milliohm": 0.001, "miliohm": 0.001,
+  // kilooomy
+  "kω": 1000, "kohm": 1000, "kilohm": 1000,
+  // czas
   "ms": 1, "s": 1000,
+  // prąd
   "ma": 1, "a": 1000,
+  // ohm — MUSI być na końcu (krótkiy sufiks)
   "ω": 1, "ohm": 1,
 };
 
@@ -157,33 +399,99 @@ const UNIT_SCALE: Record<string, number> = {
  *  - rozróżnienie WIELKOŚCI liter: MΩ (megaom — izolacja) ≠ mΩ (milioom),
  *  - przekroczenie zakresu miernika ">550" przyjmujemy jako dolną granicę.
  */
+/** Słowa oznaczające brak danych / przepełnienie / nieskończoność w różnych językach. */
+const NULL_WORDS = new Set([
+  "brak", "b/d", "bd", "nd", "n/d", "nd.", "bd.", "nie mierzono", "nie zmierzono",
+  "inf", "infinity", "ol", "overload", "overflow", "break", "broken",
+  "open", "otwarty", "przerwa", "zerwany",
+  "pass", "fail", "ok", "error", "err",
+  "---", "--", "----", "?", "∞", "x", "xx",
+]);
+
 export function parseLocalizedNumber(input: unknown): number | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "number") return Number.isFinite(input) ? input : null;
   let raw = String(input).trim();
-  if (!raw || ["-", "—", "brak", "b/d"].includes(raw.toLowerCase())) return null;
+  if (!raw) return null;
 
-  // Zakres miernika przekroczony: traktujemy wartość graniczną jako wynik.
-  raw = raw.replace(/^>|^≥/, "").trim();
+  const lower = raw.toLowerCase().replace(/\s+/g, "");
 
+  // Null-słowa: brak danych, przepełnienie, nieskończoność
+  if (NULL_WORDS.has(lower)) return null;
+  // Tylko myślniki / gwiazdki / pytajniki
+  if (/^[-—*?]+$/.test(raw)) return null;
+
+  // Przekroczenie zakresu miernika: ">999", "≥1999", "<0.01"
+  // Traktujemy wartość graniczną jako wynik (konservative)
+  raw = raw.replace(/^[>≥<≤]\s*/, "").trim();
+
+  // Normalizacja Unicode omega — różne kodowania z mierników
+  raw = raw
+    .replace(/\u03a9/g, "Ohm")   // Ω duże (U+03A9)
+    .replace(/\u03c9/g, "ohm")   // ω małe (U+03C9)
+    .replace(/\u2126/g, "Ohm");  // Ω techniczne (U+2126)
+
+  const lowerRaw = raw.toLowerCase();
   let scale = 1;
-  const mega = raw.match(/(MΩ|MOhm)$/); // megaom — case-sensitive (izolacja w MΩ)
-  if (mega) {
-    raw = raw.slice(0, -mega[0].length);
+  let stripped = raw;
+
+  // Słownik rozszerzony — od NAJDŁUŻSZEGO (megaohm) do najkrótszego (a)
+  const UNIT_MAP: [string, number][] = [
+    ["megaohm", 1], ["mohm", 0.001], ["milliohm", 0.001], ["miliohm", 0.001],
+    ["kilohm", 1000], ["kohm", 1000],
+    ["mohm", 0.001],   // mOhm (miliomy) — po lowercase
+    ["ohm", 1],
+    ["ms", 1], ["s", 1000],
+    ["ma", 1], ["a", 1000],
+  ];
+
+  // Megaohm (MΩ / MOhm) — MUSI być pierwszy, bo "M" jest duże
+  if (lowerRaw.endsWith("megaohm")) {
+    stripped = raw.slice(0, -7).trim();
+    scale = 1; // Riso jest w MΩ — wartość bez przeskalowania
+  } else if (raw.endsWith("MOhm") || raw.endsWith("Mohm") || lowerRaw.endsWith("mohm")) {
+    // Rozróżnienie: mOhm (mili) vs MOhm (mega) — przez wielkość "M"
+    const mChar = raw[raw.toLowerCase().lastIndexOf("mohm")];
+    if (mChar === "M") {
+      // MOhm = megaohm = Riso bez skalowania
+      stripped = raw.slice(0, -4).trim();
+      scale = 1;
+    } else {
+      // mohm = milliohm = ciągłość PE × 0.001
+      stripped = raw.slice(0, -4).trim();
+      scale = 0.001;
+    }
   } else {
-    const lower = raw.toLowerCase();
-    const sorted = Object.entries(UNIT_SCALE).sort((a, b) => b[0].length - a[0].length);
-    for (const [suffix, factor] of sorted) {
-      if (lower.endsWith(suffix)) {
+    for (const [suffix, factor] of UNIT_MAP) {
+      if (lowerRaw.endsWith(suffix) && suffix !== "mohm") {
         scale = factor;
-        raw = raw.slice(0, -suffix.length);
+        stripped = raw.slice(0, -suffix.length).trim();
         break;
       }
     }
   }
 
-  const s = raw.replace(/\s+/g, "").replace(",", ".");
-  const n = Number.parseFloat(s);
+  // Usuń pozostałe jednostki tekstowe z odciętego stringa
+  raw = stripped.replace(/[^\d,.\-]/g, "");
+
+  // Zamień przecinek dziesiętny na kropkę (format PL)
+  // Ostrożnie: "1.234,56" → 1234.56  |  "1,234.56" → 1234.56
+  if (raw.includes(",") && raw.includes(".")) {
+    // Oba separatory — ustal który jest dziesiętny
+    const lastComma = raw.lastIndexOf(",");
+    const lastDot = raw.lastIndexOf(".");
+    if (lastComma > lastDot) {
+      // "1.234,56" — przecinek jest dziesiętny
+      raw = raw.replace(/\./g, "").replace(",", ".");
+    } else {
+      // "1,234.56" — kropka jest dziesiętna
+      raw = raw.replace(/,/g, "");
+    }
+  } else {
+    raw = raw.replace(",", ".");
+  }
+
+  const n = Number.parseFloat(raw);
   if (!Number.isFinite(n)) return null;
   return +(n * scale).toFixed(4);
 }
@@ -192,13 +500,49 @@ export function parseLocalizedNumber(input: unknown): number | null {
 /*  Ocena pojedynczego punktu                                          */
 /* ------------------------------------------------------------------ */
 
-const C = {
-  ZS: "Zs ≤ Uo/Ia — samoczynne wyłączenie zasilania (PN-HD 60364-6, tab. 41.3)",
-  RISO: "Riso ≥ 1 MΩ przy 500 V DC dla obwodów 230/400 V (PN-HD 60364-6, tab. 6.1)",
-  CONT: "Ciągłość przewodu ochronnego potwierdzona pomiarem (R ≤ 1 Ω)",
-  RCD_T: "Czas zadziałania RCD ≤ 300 ms przy 1×IΔn (typ ogólny)",
-  RCD_I: "Wyzwolenie RCD w przedziale 0,5×IΔn ÷ 1×IΔn",
-};
+/**
+ * Baza kryterium — czytelne odwołania normowe wyświetlane w raporcie.
+ * Każde kryterium zawiera: co badamy, wartość graniczną i podstawę prawną.
+ */
+function buildCriteria(ctx: CircuitContext, protection: Protection) {
+  const net = ctx.networkSystem ?? "TN";
+  const uo = ctx.uoV ?? 230;
+  const isFinal = ctx.isFinalCircuit ?? true;
+  const rcdType = protection.rcdType ?? "AC";
+  // Stosujemy THRESHOLDS.rcdTimeMaxMs (300ms) jako konserwatywny standard praktyczny,
+  // niezależnie od normatywnego limitu 400ms dla TN 230V.
+  // 300ms jest bezpieczniejsze i stosowane przez większość mierników jako alarm.
+  const maxRcdTime = rcdType === "S" ? 500 : !isFinal ? 5000 : THRESHOLDS.rcdTimeMaxMs;
+  const minRiso = risoMinMOhm(ctx.insulationTestVoltageV, uo);
+
+  const zsLimit = zsLimitOhm(protection, uo);
+  const idn = protection.rcdmA ?? 0;
+  const raLimit = idn > 0 ? raLimitOhm(idn) : null;
+
+  return {
+    ZS: net === "TT"
+      ? `Układ TT: Ra × IΔn ≤ 50 V (PN-HD 60364-4-41:2017 pkt 411.5.3)${raLimit ? ` → Ra ≤ ${raLimit} Ω` : ""}`
+      : `Zs ≤ Uo/Ia = ${uo}/${curveMultiplier(protection.curve) * protection.inA} = ${zsLimit} Ω (PN-HD 60364-4-41:2017 pkt 411.4.4)`,
+
+    RISO: `Riso ≥ ${minRiso} MΩ przy ${ctx.insulationTestVoltageV ?? 500} V DC dla obwodów ${uo}V (PN-HD 60364-6:2016 Tab. 6.1)`,
+
+    CONT: "Ciągłość przewodu ochronnego (PE/PEN) R ≤ 1 Ω — prąd pomiarowy ≥ 200 mA (SEP-E-004, PN-HD 60364-6:2016 pkt 6.4.3.3)",
+
+    RCD_T: rcdType === "S"
+      ? `Typ S (selektywny): czas ≤ 500 ms przy 1×IΔn (PN-EN IEC 61008-1:2019 Tab. 13)`
+      : `Czas zadziałania ≤ ${maxRcdTime} ms przy 1×IΔn, typ ${rcdType} (PN-EN IEC 61008-1:2019 Tab. 13)`,
+
+    RCD_I: `Prąd wyzwalania: 0,5×IΔn ≤ Ia ≤ IΔn (${idn * 0.5}–${idn} mA) — PN-EN IEC 61008-1:2019 pkt 5.3`,
+
+    RCD_2X: `Czas zadziałania ≤ 150 ms przy 2×IΔn (PN-EN IEC 61008-1:2019)`,
+    RCD_5X: `Czas zadziałania ≤ 40 ms przy 5×IΔn (PN-EN IEC 61008-1:2019)`,
+
+    zsLimit,
+    raLimit,
+    minRiso,
+    maxRcdTime,
+  } as const;
+}
 
 function worst(a: MeasureStatus, b: MeasureStatus): MeasureStatus {
   const rank: Record<MeasureStatus, number> = { OK: 0, WARNING: 1, MISSING: 2, CRITICAL: 3 };
@@ -206,55 +550,108 @@ function worst(a: MeasureStatus, b: MeasureStatus): MeasureStatus {
 }
 
 export function evaluatePoint(point: RawPoint): PointEval {
-  const zsLimit = zsLimitOhm(point.protection);
+  // Buduj kryteria normatywne z kontekstem obwodu
+  const ctx: CircuitContext = point.context ?? {};
+  const C = buildCriteria(ctx, point.protection);
+  const net = ctx.networkSystem ?? "TN";
+  const uo = ctx.uoV ?? 230;
 
-  const zs: MeasureVerdict = point.zsOhm == null
-    ? { value: null, unit: "Ω", limit: zsLimit, limitText: `≤ ${zsLimit} Ω`, criterion: C.ZS, status: "MISSING" }
-    : {
-        value: point.zsOhm, unit: "Ω", limit: zsLimit,
-        limitText: `≤ ${zsLimit} Ω`, criterion: C.ZS,
-        status: point.zsOhm > zsLimit ? "CRITICAL" : point.zsOhm > zsLimit * THRESHOLDS.zsWarnRatio ? "WARNING" : "OK",
-      };
+  /* ----- Impedancja pętli zwarcia / rezystancja uziemienia ----- */
+  let zs: MeasureVerdict;
+  if (net === "TT" && point.protection.rcdmA) {
+    // Układ TT: kryterium Ra × IΔn ≤ 50V zamiast Zs ≤ Uo/Ia
+    const raLim = C.raLimit ?? 1666;
+    const raVal = point.raOhm ?? point.zsOhm; // Ra ≈ Zs w uproszczeniu
+    zs = raVal == null
+      ? { value: null, unit: "Ω", limit: raLim, limitText: `Ra ≤ ${raLim} Ω`, criterion: C.ZS, status: "MISSING" }
+      : {
+          value: raVal, unit: "Ω", limit: raLim,
+          limitText: `Ra ≤ ${raLim} Ω`, criterion: C.ZS,
+          status: raVal > raLim ? "CRITICAL" : raVal > raLim * 0.9 ? "WARNING" : "OK",
+        };
+  } else {
+    // TN/IT: kryterium Zs ≤ Uo/Ia
+    const zsLimit = C.zsLimit;
+    zs = point.zsOhm == null
+      ? { value: null, unit: "Ω", limit: zsLimit, limitText: `≤ ${zsLimit} Ω`, criterion: C.ZS, status: "MISSING" }
+      : {
+          value: point.zsOhm, unit: "Ω", limit: zsLimit,
+          limitText: `≤ ${zsLimit} Ω`, criterion: C.ZS,
+          status: point.zsOhm > zsLimit ? "CRITICAL"
+            : point.zsOhm > zsLimit * THRESHOLDS.zsWarnRatio ? "WARNING" : "OK",
+        };
+  }
 
+  /* ----- Rezystancja izolacji ----- */
+  const risoMin = C.minRiso;
   const riso: MeasureVerdict = point.risoMOhm == null
-    ? { value: null, unit: "MΩ", limit: THRESHOLDS.risoMinMOhm, limitText: `≥ ${THRESHOLDS.risoMinMOhm} MΩ`, criterion: C.RISO, status: "MISSING" }
+    ? { value: null, unit: "MΩ", limit: risoMin, limitText: `≥ ${risoMin} MΩ`, criterion: C.RISO, status: "MISSING" }
     : {
-        value: point.risoMOhm, unit: "MΩ", limit: THRESHOLDS.risoMinMOhm,
-        limitText: `≥ ${THRESHOLDS.risoMinMOhm} MΩ`, criterion: C.RISO,
-        status: point.risoMOhm < THRESHOLDS.risoMinMOhm ? "CRITICAL" : point.risoMOhm < THRESHOLDS.risoWarnBand ? "WARNING" : "OK",
+        value: point.risoMOhm, unit: "MΩ", limit: risoMin,
+        limitText: `≥ ${risoMin} MΩ`, criterion: C.RISO,
+        status: point.risoMOhm < risoMin ? "CRITICAL"
+          : point.risoMOhm < THRESHOLDS.risoWarnBand ? "WARNING" : "OK",
       };
 
+  /* ----- Ciągłość PE ----- */
   const continuity: MeasureVerdict = point.continuityOhm == null
     ? { value: null, unit: "Ω", limit: THRESHOLDS.continuityMaxOhm, limitText: `≤ ${THRESHOLDS.continuityMaxOhm} Ω`, criterion: C.CONT, status: "MISSING" }
     : {
         value: point.continuityOhm, unit: "Ω", limit: THRESHOLDS.continuityMaxOhm,
         limitText: `≤ ${THRESHOLDS.continuityMaxOhm} Ω`, criterion: C.CONT,
-        status: point.continuityOhm > THRESHOLDS.continuityMaxOhm ? "CRITICAL" : point.continuityOhm > THRESHOLDS.continuityWarnOhm ? "WARNING" : "OK",
+        // Uwaga: wartości >1999 (overrange) traktujemy jak przerwę → CRITICAL
+        status: point.continuityOhm > THRESHOLDS.continuityMaxOhm || point.continuityOhm > 1000 ? "CRITICAL"
+          : point.continuityOhm > THRESHOLDS.continuityWarnOhm ? "WARNING" : "OK",
       };
 
+  /* ----- RCD ----- */
   let rcdTime: MeasureVerdict | null = null;
   let rcdCurrent: MeasureVerdict | null = null;
+
   if (point.protection.rcdmA) {
     const idn = point.protection.rcdmA;
+    const maxTime = C.maxRcdTime;
+
     rcdTime = point.rcdTripMs == null
-      ? { value: null, unit: "ms", limit: THRESHOLDS.rcdTimeMaxMs, limitText: `≤ ${THRESHOLDS.rcdTimeMaxMs} ms`, criterion: C.RCD_T, status: "MISSING" }
+      ? { value: null, unit: "ms", limit: maxTime, limitText: `≤ ${maxTime} ms`, criterion: C.RCD_T, status: "MISSING" }
       : {
-          value: point.rcdTripMs, unit: "ms", limit: THRESHOLDS.rcdTimeMaxMs,
-          limitText: `≤ ${THRESHOLDS.rcdTimeMaxMs} ms`, criterion: C.RCD_T,
-          status: point.rcdTripMs > THRESHOLDS.rcdTimeMaxMs ? "CRITICAL" : point.rcdTripMs > THRESHOLDS.rcdTimeMaxMs * THRESHOLDS.rcdTimeWarnRatio ? "WARNING" : "OK",
+          value: point.rcdTripMs, unit: "ms", limit: maxTime,
+          limitText: `≤ ${maxTime} ms`, criterion: C.RCD_T,
+          status: point.rcdTripMs > maxTime ? "CRITICAL"
+            : point.rcdTripMs > maxTime * THRESHOLDS.rcdTimeWarnRatio ? "WARNING" : "OK",
         };
+
     const lowLim = +(idn * THRESHOLDS.rcdTripLowRatio).toFixed(1);
     rcdCurrent = point.rcdTripmA == null
       ? { value: null, unit: "mA", limit: idn, limitText: `${lowLim}–${idn} mA`, criterion: C.RCD_I, status: "MISSING" }
       : {
           value: point.rcdTripmA, unit: "mA", limit: idn,
           limitText: `${lowLim}–${idn} mA`, criterion: C.RCD_I,
-          status: point.rcdTripmA > idn || point.rcdTripmA < lowLim
-            ? "CRITICAL"
+          status: point.rcdTripmA > idn || point.rcdTripmA < lowLim ? "CRITICAL"
             : point.rcdTripmA > idn * THRESHOLDS.zsWarnRatio ? "WARNING" : "OK",
         };
   }
 
+  /* ----- Walidacja pomieszczeń specjalnych (PN-HD 60364-7-xxx) ----- */
+  const zone = point.zoneType ?? "STANDARD";
+  const wetZones: ZoneType[] = ["LAZIENKA", "BASEN", "MOKRE", "MEDYCZNE", "BUDOWA", "ROLNICTWO"];
+  const isWetZone = wetZones.includes(zone);
+
+  // Łazienki/baseny/mokre: RCD 30mA OBLIGATORYJNE (PN-HD 60364-7-701)
+  const rcdMissing = !point.protection.rcdmA;
+  const rcdRequired = isWetZone && rcdMissing;
+
+  // RCD typ S: czas musi mieścić się w przedziale 130-500ms
+  const isStype = point.protection.rcdType === "S";
+  let rcdStypeInvalid = false;
+  if (isStype && point.rcdTripMs != null) {
+    rcdStypeInvalid = point.rcdTripMs < 130 || point.rcdTripMs > 500;
+  }
+
+  // Test mechaniczny RCD (przycisk TEST)
+  const rcdTestFailed = point.rcdTestButtonOk === false;
+
+  /* ----- Wynik ogólny ----- */
   let overall: MeasureStatus = "OK";
   for (const v of [zs, riso, continuity, rcdTime, rcdCurrent]) {
     if (!v) continue;
@@ -262,9 +659,13 @@ export function evaluatePoint(point: RawPoint): PointEval {
     else overall = worst(overall, v.status);
   }
   if (overall !== "CRITICAL" && overall !== "WARNING") {
-    const anyMissing = [zs, riso, continuity].some((v) => v.status === "MISSING");
-    if (anyMissing) overall = "MISSING";
+    if ([zs, riso, continuity].some((v) => v.status === "MISSING")) overall = "MISSING";
   }
+
+  // Walidacja pomieszczeń specjalnych podnosi status do CRITICAL
+  if (rcdRequired) overall = "CRITICAL";
+  if (rcdStypeInvalid) overall = "CRITICAL";
+  if (rcdTestFailed) overall = "CRITICAL";
 
   return { point, zs, riso, continuity, rcdTime, rcdCurrent, overall };
 }
@@ -386,7 +787,43 @@ export function analyzePoints(points: RawPoint[]): AnalysisResult {
     });
   }
 
-  return { algorithmVersion: ALGORITHM_VERSION, criteriaSet: CRITERIA_SET, points: evals, summary, findings, verdictCounts };
+  /* ----- Orzeczenie końcowe ----- */
+  const faults: Fault[] = findings
+    .filter((f) => f.category === "KRYTYCZNE" || f.category === "OSTRZEŻENIE")
+    .map((f) => ({
+      pointCode: f.pointCode,
+      parameter: f.parameter,
+      measuredValue: f.result.split("·")[0]?.trim() ?? "—",
+      allowedValue: f.result.split("·")[1]?.trim() ?? f.criterion,
+      normReference: f.criterion,
+      priority: f.category === "KRYTYCZNE" ? "PILNE" as FaultPriority : "NAPRAWA" as FaultPriority,
+      description: f.cause,
+    }));
+
+  const verdictStatus = summary.critical > 0 ? "NIE_SPEŁNIA" as const
+    : summary.missing > 0 ? "WARUNKOWO" as const
+    : "SPEŁNIA" as const;
+
+  const verdictStatement = verdictStatus === "SPEŁNIA"
+    ? "Badana instalacja elektryczna SPEŁNIA wymagania w zakresie ochrony przeciwporażeniowej i przepisów eksploatacji."
+    : verdictStatus === "NIE_SPEŁNIA"
+    ? "Badana instalacja elektryczna NIE SPEŁNIA wymagań w zakresie ochrony przeciwporażeniowej i przepisów eksploatacji. Wymagane usunięcie stwierdzonych usterek."
+    : "Ocena warunkowa — niekompletne dane pomiarowe uniemożliwiają jednoznaczne orzeczenie. Wymagane uzupełnienie zakresu badań.";
+
+  // Termin następnego badania: max 5 lat, krócej dla stref specjalnych
+  const hasSpecialZone = points.some((p) => p.zoneType && p.zoneType !== "STANDARD");
+  const nextYears = hasSpecialZone ? 1 : 5; // strefy specjalne: co rok
+  const nextDate = new Date();
+  nextDate.setFullYear(nextDate.getFullYear() + nextYears);
+
+  const finalVerdict: FinalVerdict = {
+    status: verdictStatus,
+    statement: verdictStatement,
+    nextInspectionDate: nextDate.toISOString().slice(0, 10),
+    faults,
+  };
+
+  return { algorithmVersion: ALGORITHM_VERSION, criteriaSet: CRITERIA_SET, points: evals, summary, findings, verdictCounts, finalVerdict };
 }
 
 /* ------------------------------------------------------------------ */
@@ -411,17 +848,61 @@ export interface ColumnSpec {
 }
 
 export const IMPORT_COLUMNS: ColumnSpec[] = [
-  { key: "code", label: "Punkt / oznaczenie", required: true, synonyms: ["lp", "pkt", "punkt", "oznaczenie", "nr", "code", "id"] },
-  { key: "location", label: "Lokalizacja", required: true, synonyms: ["lokalizacja", "pomieszczenie", "strefa", "miejsce", "location"] },
-  { key: "circuit", label: "Obwód", required: false, synonyms: ["obwod", "obwód", "circuit", "nazwa obwodu"] },
-  { key: "breakerCurve", label: "Charakterystyka zabezpieczenia", required: true, synonyms: ["charakterystyka", "krzywa", "curve", "typ"] },
-  { key: "breakerIn", label: "Prąd znamionowy [A]", required: true, synonyms: ["in", "prad znamionowy", "prąd znamionowy", "a", "in[a]", "breaker"] },
-  { key: "rcdmA", label: "IΔn RCD [mA]", required: false, synonyms: ["idn", "rcd", "iδn", "rcd[ma]", "prad roznicowy"] },
-  { key: "zs", label: "Zs [Ω]", required: true, synonyms: ["zs", "z s", "impedancja", "petla zwarcia", "pętla zwarcia", "zs[ω]", "zs[ohm]"] },
-  { key: "riso", label: "Riso [MΩ]", required: true, synonyms: ["riso", "r iso", "izolacja", "rezystancja izolacji", "riso[mω]", "iso"] },
-  { key: "continuity", label: "Ciągłość PE [Ω]", required: false, synonyms: ["ciaglosc", "ciągłość", "rpe", "pe", "continuity", "przewod ochronny", "rkont", "r kont", "rcont", "200ma", "ochronny"] },
-  { key: "rcdTime", label: "Czas RCD [ms]", required: false, synonyms: ["rcd t", "czas rcd", "t ia", "czas wyzwalania", "rcdtime", "t[ms]"] },
-  { key: "rcdCurrent", label: "Prąd wyzwalania RCD [mA]", required: false, synonyms: ["rcd i", "prad wyzwalania", "prąd wyzwalania", "rcdcurrent", "ia[ma]"] },
+  {
+    key: "code", label: "Punkt / oznaczenie", required: true,
+    synonyms: ["lp", "pkt", "punkt", "oznaczenie", "nr", "code", "id", "no", "pos", "position", "num", "numer"],
+  },
+  {
+    key: "location", label: "Lokalizacja / obiekt", required: true,
+    synonyms: ["lokalizacja", "pomieszczenie", "strefa", "miejsce", "location", "obiekt", "opis", "uwagi", "room", "area", "zone", "description"],
+  },
+  {
+    key: "circuit", label: "Obwód", required: false,
+    synonyms: ["obwod", "obwód", "circuit", "nazwa obwodu", "linia", "type", "rodzaj", "group"],
+  },
+  {
+    key: "breakerCurve", label: "Charakterystyka [B/C/D]", required: true,
+    synonyms: ["charakterystyka", "krzywa", "curve", "char", "char.", "charakt", "typ"],
+  },
+  {
+    key: "breakerIn", label: "Prąd znamionowy [A]", required: true,
+    synonyms: ["in", "in[a]", "in(a)", "rating", "prad znamionowy", "prąd znamionowy", "nominal", "fuse", "breaker", "zabezpieczenie"],
+  },
+  {
+    key: "rcdmA", label: "IΔn RCD [mA]", required: false,
+    synonyms: ["idn", "iδn", "rcd", "rcd[ma]", "rcd(ma)", "prad roznicowy", "prąd różnicowy", "idelta", "i delta", "typ rcd", "rcd typ"],
+  },
+  {
+    key: "zs", label: "Impedancja pętli Zs [Ω]", required: true,
+    synonyms: ["zs", "zs[ω]", "zs[ohm]", "zs(ohm)", "impedancja", "petla zwarcia", "pętla zwarcia", "zm. petli", "zm. pętli", "loop impedance", "loop"],
+  },
+  {
+    key: "riso", label: "Rezystancja izolacji [MΩ]", required: true,
+    synonyms: ["riso", "r iso", "riso[mω]", "riso(mohm)", "izolacja", "rezystancja izolacji", "rez. izol", "rez. izol.", "insulation", "iso", "r_ins"],
+  },
+  {
+    key: "continuity", label: "Ciągłość PE [Ω]", required: false,
+    synonyms: [
+      "ciaglosc", "ciągłość", "rpe", "r_pe", "r pe", "pe", "continuity",
+      "przewod ochronny", "rkont", "r kont", "r_kont", "rcont", "r_cont",
+      "200ma", "ochronny", "cont", "ciagl", "ciagl.", "protective", "earth",
+    ],
+  },
+  {
+    key: "rcdTime", label: "Czas zadziałania RCD [ms]", required: false,
+    synonyms: [
+      "t_rcd", "trcd", "rcd t", "czas rcd", "t ia", "czas wyzwalania", "trip time",
+      "rcdtime", "t[ms]", "t(ms)", "czas[ms]", "t_trip", "time",
+      "czas", "czas ms", "czas[ms]", "czas (ms)", "czas [ms]",
+    ],
+  },
+  {
+    key: "rcdCurrent", label: "Prąd wyzwalania RCD [mA]", required: false,
+    synonyms: [
+      "rcd i", "i_rcd", "ircd", "prad wyzwalania", "prąd wyzwalania",
+      "rcdcurrent", "ia[ma]", "trip current", "i_trip", "wyzwalanie",
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -501,36 +982,62 @@ export function scoreByValues(key: string, p: ColumnProfile): number {
 
   switch (key) {
     case "code":
-      return p.codeLike > 0.7 && p.uniqueRatio > 0.8 ? 0.9 : p.uniqueRatio > 0.9 && p.textRatio > 0.5 ? 0.55 : 0;
+      // Krótkie unikalne kody: LP-01, A1, 1, 2, 3
+      return p.codeLike > 0.6 && p.uniqueRatio > 0.85 ? 0.92
+        : p.uniqueRatio > 0.95 && p.count > 0 && p.textRatio > 0.3 ? 0.6 : 0;
+
     case "location":
-      return p.textRatio > 0.8 && p.codeLike < 0.3 && p.uniqueRatio <= 0.95 ? 0.6 : 0;
+      // Tekst opisowy, dłuższe frazy, powtarzający się (wiele punktów w tym samym miejscu)
+      return p.textRatio > 0.8 && p.codeLike < 0.3 && p.uniqueRatio < 0.9 && p.count > 0 ? 0.65 : 0;
+
     case "circuit":
-      return p.textRatio > 0.8 && p.codeLike < 0.3 ? 0.45 : 0;
+      // Tekst, może się powtarzać, kodopodobny mniej niż lokalizacja
+      return p.textRatio > 0.7 && p.codeLike < 0.5 ? 0.42 : 0;
+
     case "breakerCurve":
-      return p.curveLike > 0.8 ? 0.95 : 0;
+      // Wyłącznie B/C/D (ewentualnie B16, C32 jako compound)
+      return p.curveLike > 0.7 ? 0.97 : 0;
+
     case "breakerIn":
-      // Prąd znamionowy: wyłącznie wartości z typoszeregu wyłączników
-      return allFrom(STD_BREAKER_IN) && p.decimalsRatio < 0.1 && !allFrom(STD_RCD) ? 0.88 : 0;
+      // Całkowite z typoszeregu wyłączników; nie RCD, nie za duże
+      return allFrom(STD_BREAKER_IN) && p.decimalsRatio < 0.15 && !allFrom(STD_RCD) ? 0.9 : 0;
+
     case "rcdmA":
-      // IΔn: wyłącznie wartości z typoszeregu RCD (rozstrzyga kolizję z Riso)
-      return allFrom(STD_RCD) && p.decimalsRatio < 0.1 ? 0.9 : 0;
+      // Dokładnie z typoszeregu RCD (6/10/30/100/300/500/1000)
+      return allFrom(STD_RCD) && p.decimalsRatio < 0.1 ? 0.93 : 0;
+
     case "zs":
-      // Impedancja pętli: ułamkowa, typowo 0,05–20 Ω
-      return p.numericRatio > 0.8 && inRange(0.01, 25) && medianIn(0.1, 10) && p.decimalsRatio > 0.5 ? 0.85 : 0;
+      // Impedancja pętli zwarcia: ułamkowe, 0.05–20 Ω, mediana 0.3–8
+      if (allFrom(STD_RCD) || allFrom(STD_BREAKER_IN)) return 0;
+      return p.numericRatio > 0.75 && inRange(0.01, 30)
+        && medianIn(0.1, 10) && p.decimalsRatio > 0.45 ? 0.87 : 0;
+
     case "riso":
-      // Rezystancja izolacji: duże wartości (MΩ), rozkład ciągły — nie typoszereg RCD
+      // Rezystancja izolacji: duże wartości (dziesiątki–setki MΩ), rozkład ciągły
       if (allFrom(STD_RCD)) return 0;
-      return p.numericRatio > 0.8 && medianIn(20, 100000) ? 0.85 : p.numericRatio > 0.8 && inRange(0.1, 1000) && medianIn(5, 1000) ? 0.5 : 0;
+      if (p.numericRatio > 0.75 && medianIn(50, 10000)) return 0.9;
+      if (p.numericRatio > 0.75 && medianIn(1, 50) && p.max !== null && p.max > 10) return 0.6;
+      return 0;
+
     case "continuity":
-      // Ciągłość PE: bardzo małe wartości, ALE mierniki rzucają np. ">1999" (poza zakresem).
-      // Zamiast sztywnego inRange na MAX, patrzymy na medianę i obecność ułamków/zera.
-      return p.numericRatio > 0.7 && medianIn(0, 10) && (p.decimalsRatio > 0.3 || p.median === 0) && !allFrom(STD_RCD) ? 0.8 : 0;
+      // Ciągłość PE: bardzo małe (< 5 Ω mediana), ułamkowe lub zero.
+      // Tolerujemy overrange (>1999) przez wyższe max.
+      if (allFrom(STD_RCD) || allFrom(STD_BREAKER_IN)) return 0;
+      return p.numericRatio > 0.65 && medianIn(0, 5)
+        && (p.decimalsRatio > 0.25 || (p.median !== null && p.median < 2)) ? 0.82 : 0;
+
     case "rcdTime":
-      // Czas zadziałania RCD: 5–500 ms, zwykle całkowite
-      return p.numericRatio > 0.8 && inRange(1, 600) && medianIn(8, 400) && p.decimalsRatio < 0.35 ? 0.65 : 0;
+      // Czas zadziałania RCD: typowo 10–400 ms, całkowite
+      if (allFrom(STD_RCD)) return 0;
+      return p.numericRatio > 0.75 && inRange(1, 1000)
+        && medianIn(10, 350) && p.decimalsRatio < 0.3 ? 0.68 : 0;
+
     case "rcdCurrent":
-      // Prąd wyzwalania RCD: 5–500 mA, często ułamkowy (np. 19,8)
-      return p.numericRatio > 0.8 && inRange(1, 600) && medianIn(8, 400) && p.decimalsRatio >= 0.35 ? 0.7 : 0;
+      // Prąd wyzwalania: 5–500 mA, ułamkowy (np. 19,8), NIE całkowity typoszereg RCD
+      if (allFrom(STD_RCD)) return 0;
+      return p.numericRatio > 0.75 && inRange(1, 600)
+        && medianIn(8, 400) && p.decimalsRatio > 0.3 ? 0.72 : 0;
+
     default:
       return 0;
   }
@@ -684,25 +1191,77 @@ export function rowsToPoints(
       errors.push(`Wiersz ${i + 1}: brak oznaczenia punktu — wiersz pominięty.`);
       return;
     }
-    const curveRaw = String(get(row, "breakerCurve") ?? "B").trim().toUpperCase();
+
+    /* ---- Wykrywanie charakterystyki i prądu ---- */
+    let curveRaw = String(get(row, "breakerCurve") ?? "").trim().toUpperCase();
+    let inAraw: unknown = get(row, "breakerIn");
+
+    // Obsługa "B16", "C32", "D10" — zabezpieczenie w jednej komórce
+    if (curveRaw.match(/^[BCD]\d+$/) && !inAraw) {
+      inAraw = curveRaw.slice(1);
+      curveRaw = curveRaw.slice(0, 1);
+    }
+    // Obsługa kolumny "Zabezpieczenie" z wartością "B16" nawet gdy jest osobna kolumna Char.
+    const zabRaw = String(get(row, "breakerCurve") ?? "").trim().toUpperCase();
+    if (!curveRaw && zabRaw.match(/^[BCD]\d+$/)) {
+      curveRaw = zabRaw.slice(0, 1);
+      inAraw = zabRaw.slice(1);
+    }
     const curve: BreakerCurve = curveRaw.startsWith("C") ? "C" : curveRaw.startsWith("D") ? "D" : "B";
-    const inA = parseLocalizedNumber(get(row, "breakerIn")) ?? 16;
-    const rcdmA = parseLocalizedNumber(get(row, "rcdmA"));
+    const inA = parseLocalizedNumber(inAraw) ?? 16;
+
+    /* ---- RCD ---- */
+    const rcdRaw = get(row, "rcdmA");
+    let rcdmA: number | null = parseLocalizedNumber(rcdRaw);
+    // "0" lub "" lub "---" traktujemy jako brak RCD
+    if (rcdmA === 0) rcdmA = null;
+    // Wyciągamy wartość z "30mA", "100 mA" (unit może być inline w tej kolumnie)
+    if (rcdmA === null && rcdRaw != null) {
+      const cleaned = String(rcdRaw).toLowerCase().replace("ma", "").replace("mа", "").trim();
+      const parsed = parseLocalizedNumber(cleaned);
+      if (parsed && parsed > 0) rcdmA = parsed;
+    }
+
+    /* ---- Czasy i prądy RCD — "0" oznacza brak pomiaru ---- */
+    const rcdTime = parseLocalizedNumber(get(row, "rcdTime"));
+    const rcdCurrent = parseLocalizedNumber(get(row, "rcdCurrent"));
 
     points.push({
       code: String(rawCode).trim(),
       location: rawLoc != null ? String(rawLoc).trim() : "—",
       circuit: String(get(row, "circuit") ?? "—").trim() || "—",
-      protection: { curve, inA, rcdmA: rcdmA ?? null },
+      protection: { curve, inA, rcdmA },
       zsOhm: parseLocalizedNumber(get(row, "zs")),
       risoMOhm: parseLocalizedNumber(get(row, "riso")),
       continuityOhm: parseLocalizedNumber(get(row, "continuity")),
-      rcdTripMs: parseLocalizedNumber(get(row, "rcdTime")),
-      rcdTripmA: parseLocalizedNumber(get(row, "rcdCurrent")),
+      rcdTripMs: (rcdTime === 0 ? null : rcdTime),
+      rcdTripmA: (rcdCurrent === 0 ? null : rcdCurrent),
     });
   });
 
   return { points, errors };
+}
+
+/**
+ * Walidacja wzorcowania przyrządów pomiarowych.
+ * Zgodnie z PN-EN 61557 i wytycznymi SEP: wzorcowanie co 12-24 mies.
+ */
+export function validateInstruments(instruments: Instrument[], measurementDate: string): InstrumentValidation[] {
+  const mDate = new Date(measurementDate);
+  return instruments.map((inst) => {
+    const calDate = new Date(inst.calibrationValidUntil);
+    if (isNaN(calDate.getTime())) {
+      return { valid: false, instrument: inst, error: "Nieprawidłowa data ważności wzorcowania." };
+    }
+    if (calDate < mDate) {
+      return {
+        valid: false,
+        instrument: inst,
+        error: `Świadectwo wzorcowania (${inst.calibrationNo}) wygasło ${inst.calibrationValidUntil} — pomiary wykonano ${measurementDate}. Protokół może zostać odrzucony przez PINB/OSD/ubezpieczyciela.`,
+      };
+    }
+    return { valid: true, instrument: inst };
+  });
 }
 
 /** Eksport punktów pomiarowych do CSV (separator ';', przecinki dziesiętne — Excel PL). */

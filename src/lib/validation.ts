@@ -81,6 +81,7 @@ const rawPointSchema = z.object({
   continuityOhm: z.number().nullable().optional(),
   rcdTripMs: z.number().nullable().optional(),
   rcdTripmA: z.number().nullable().optional(),
+  zoneType: z.string().optional(),
 });
 
 export const createReportSchema = z.object({
@@ -89,7 +90,11 @@ export const createReportSchema = z.object({
   objectName: z.string().max(300).optional(),
   objectAddress: z.string().max(500).optional(),
   clientName: z.string().max(300).optional(),
-  instrument: z.string().max(500).optional(),
+  weather: z.string().max(500).optional(),
+  instruments: z.array(z.string()).optional(),
+  inspectionChecklist: z.record(z.string(), z.boolean()).optional(),
+  inspectionNotes: z.string().max(2000).optional(),
+  globalZone: z.string().optional(),
 });
 
 export const approveReportSchema = z.object({

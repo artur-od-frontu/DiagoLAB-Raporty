@@ -15,13 +15,13 @@ test.describe("Raport interaktywny /demo", () => {
     await expect(summary).toContainText("Nieprawidłowości");
   });
 
-  test("tabela: 12 wierszy, filtr KRYTYCZNE zawęża do 1, wyszukiwarka działa", async ({ page }) => {
+  test("tabela: 12 wierszy, filtr KRYTYCZNE zawęża do 3, wyszukiwarka działa", async ({ page }) => {
     const rows = page.locator("#r-wyniki table tbody tr");
     await expect(rows).toHaveCount(12);
 
     await page.getByRole("button", { name: /KRYTYCZNE/ }).first().click();
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText("LP-05");
+    await expect(rows).toHaveCount(3);
+    await expect(page.locator("#r-wyniki")).toContainText("LP-05");
 
     await page.getByRole("button", { name: /Wszystkie/ }).click();
     await expect(rows).toHaveCount(12);
@@ -34,7 +34,7 @@ test.describe("Raport interaktywny /demo", () => {
     const row = page.locator("#r-wyniki table tbody tr", { hasText: "LP-05" }).first();
     await row.click();
     await expect(page.locator("#r-wyniki")).toContainText("Impedancja pętli zwarcia");
-    await expect(page.locator("#r-wyniki")).toContainText("samoczynne wyłączenie zasilania");
+    await expect(page.locator("#r-wyniki")).toContainText("PN-HD 60364-4-41");
   });
 
   test("ostrzeżenia: akceptacja wpisu odnotowuje decyzję", async ({ page }) => {

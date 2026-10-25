@@ -367,16 +367,36 @@ export function renderReportPdfHtml(opts: {
   </p>
 </section>
 
-<!-- ══════════════ STRONA 2 · WYNIKI ══════════════ -->
+<!-- ══════════════ STRONA 2 · OGLĘDZINY ══════════════ -->
 <section class="page">
-  <h2><span class="no">1·</span> Wyniki pomiarów</h2>
+  <h2><span class="no">1·</span> Protokół Oględzin</h2>
+  ${meta.inspectionChecklist ? `
+  <div class="box avoid" style="margin-bottom:14px;">
+    <table class="t" style="width:100%; border:none;">
+      <tbody>
+        <tr><td style="${meta.inspectionChecklist.noVisibleDamage ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.noVisibleDamage ? '✓' : '✗'}</td><td>Brak widocznych uszkodzeń mechanicznych</td></tr>
+        <tr><td style="${meta.inspectionChecklist.circuitLabelsOk ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.circuitLabelsOk ? '✓' : '✗'}</td><td>Obecność czytelnych oznaczeń obwodów w rozdzielnicach</td></tr>
+        <tr><td style="${meta.inspectionChecklist.peNmarkingsOk ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.peNmarkingsOk ? '✓' : '✗'}</td><td>Prawidłowe oznakowanie zacisków i przewodów PE / N</td></tr>
+        <tr><td style="${meta.inspectionChecklist.protectionMatchesWiring ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.protectionMatchesWiring ? '✓' : '✗'}</td><td>Prawidłowy dobór aparatury zabezpieczającej do przekrojów przewodów</td></tr>
+        <tr><td style="${meta.inspectionChecklist.bondingVisualOk ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.bondingVisualOk ? '✓' : '✗'}</td><td>Wizualne potwierdzenie obecności i ciągłości połączeń wyrównawczych</td></tr>
+        <tr><td style="${meta.inspectionChecklist.schematicsPresent ? 'color:'+C.ok : 'color:'+C.crit}">${meta.inspectionChecklist.schematicsPresent ? '✓' : '✗'}</td><td>Dostępność schematów strukturalnych (jednokreskowych)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  ${meta.inspectionChecklist.notes ? `<p class="disc"><b>Uwagi wykonawcy:</b> ${esc(meta.inspectionChecklist.notes)}</p>` : ''}
+  ` : '<p class="disc">Oględziny nie zostały udokumentowane w systemie.</p>'}
+</section>
+
+<!-- ══════════════ STRONA 3 · WYNIKI ══════════════ -->
+<section class="page">
+  <h2><span class="no">2·</span> Wyniki pomiarów</h2>
   ${resultsTable(analysis.points)}
   <p class="disc" style="margin-top:10px;">Kryteria: impedancja pętli zwarcia Zs ≤ U0/Ia (samoczynne wyłączenie zasilania); rezystancja izolacji ≥ 1 MΩ przy 500 V DC; ciągłość przewodu ochronnego ≤ 1 Ω; czas zadziałania RCD ≤ 300 ms przy 1×IΔn; prąd wyzwalania RCD w zakresie 0,5–1×IΔn.</p>
 </section>
 
-<!-- ══════════════ STRONA 3 · WYKRESY + ANALIZA ══════════════ -->
+<!-- ══════════════ STRONA 4 · WYKRESY + ANALIZA ══════════════ -->
 <section class="page">
-  <h2><span class="no">2·</span> Wykresy</h2>
+  <h2><span class="no">3·</span> Wykresy</h2>
   <figure class="avoid">
     <figcaption>Impedancja pętli zwarcia względem limitu zabezpieczenia</figcaption>
     ${chartZs(analysis.points)}
@@ -390,10 +410,10 @@ export function renderReportPdfHtml(opts: {
   ${narrative.map((p) => `<p style="margin-bottom:11px;font-size:11.5px;">${esc(p)}</p>`).join("")}
 </section>
 
-<!-- ══════════════ STRONA 4 · HISTORIA + USTALENIA ══════════════ -->
+<!-- ══════════════ STRONA 5 · HISTORIA + USTALENIA ══════════════ -->
 <section class="page">
   ${payload.history
-    ? `<h2><span class="no">4·</span> Historia pomiarów — Smart Compare+</h2>
+    ? `<h2><span class="no">5·</span> Historia pomiarów — Smart Compare+</h2>
     <figure class="avoid">${chartHistory(payload.history)}</figure>
     <p class="disc" style="margin-top:-8px;margin-bottom:6px;">Porównanie kolejnych serii tego samego punktu pomiarowego. Wiarygodne tylko przy tych samych metodach i warunkach pomiaru; trend nie stanowi gwarancji przyszłego stanu instalacji.</p>`
     : `<h2><span class="no">4·</span> Historia pomiarów — Smart Compare+</h2>
@@ -403,9 +423,9 @@ export function renderReportPdfHtml(opts: {
   ${findings || '<p class="dim">Brak ustaleń nieprawidłowych.</p>'}
 </section>
 
-<!-- ══════════════ STRONA 5 · OCENA + PODPIS + ŹRÓDŁA ══════════════ -->
+<!-- ══════════════ STRONA 6 · OCENA + PODPIS + ŹRÓDŁA ══════════════ -->
 <section class="page">
-  <h2><span class="no">6·</span> Ocena końcowa</h2>
+  <h2><span class="no">7·</span> Ocena końcowa</h2>
   <div class="box avoid" style="display:table;width:100%;">
     <div style="display:table-cell;vertical-align:middle;">
       ${assessBadge}
@@ -434,6 +454,8 @@ export function renderReportPdfHtml(opts: {
   <div class="cols avoid">
     <div class="left">
       <table class="meta">
+        ${meta.instrumentsDetails?.length ? `<tr><td colspan="2" style="padding-top:14px;padding-bottom:2px;"><b>Przyrządy pomiarowe:</b></td></tr>` + meta.instrumentsDetails.map(i => `<tr><td>${esc(i.name)} <span class="dim sm">SN: ${esc(i.serialNo)}</span></td><td class="sm">Wzorcowanie: ${esc(i.calibrationNo)} do ${esc(i.calibrationValidUntil)}</td></tr>`).join("") : ""}
+        <tr><td colspan="2" style="padding-top:14px;padding-bottom:2px;"><b>Integralność danych:</b></td></tr>
         <tr><td>Plik źródłowy</td><td class="mono" style="font-size:10px;">${esc(meta.source.fileName)}</td></tr>
         <tr><td>Data importu</td><td>${datePl}</td></tr>
         <tr><td>Liczba rekordów</td><td>${s.total}</td></tr>

@@ -60,6 +60,8 @@ export interface ReportMeta {
   contractor: string;
   installer: { name: string; company: string; certificateNo: string; scope: string };
   instrument: string;
+  instrumentsDetails?: import("@/lib/engine").Instrument[];
+  inspectionChecklist?: import("@/lib/engine").InspectionChecklist & { notes?: string };
   source: { fileName: string; importedAt: string };
   weather: string;
   /** Logo firmy wykonawcy (data URL) — nagłówek raportu i strona tytułowa PDF. */
@@ -353,7 +355,9 @@ export function ReportView({
               </div>
             ))}
           </dl>
-          <p className="mt-4 text-[12px] text-faint font-mono">{meta.instrument} · {meta.weather}</p>
+          <p className="mt-4 text-[12px] text-faint font-mono">
+            {meta.instrumentsDetails?.length ? meta.instrumentsDetails.map(i => i.name).join(" · ") : meta.instrument} · {meta.weather}
+          </p>
         </div>
 
         {/* Szybka nawigacja po raporcie */}
@@ -378,9 +382,36 @@ export function ReportView({
         </nav>
       </header>
 
-      {/* B. PODSUMOWANIE */}
+      {/* B. OGLĘDZINY */}
+      {meta.inspectionChecklist && (
+        <section id="r-ogledziny" className="rpt-sec">
+          <p className="rpt-sec-label">B · Protokół oględzin (PN-HD 60364-6)</p>
+          <div className="grid md:grid-cols-2 gap-4 mt-6">
+            {[
+              [meta.inspectionChecklist.noVisibleDamage, "Brak widocznych uszkodzeń mechanicznych wpływających na bezpieczeństwo"],
+              [meta.inspectionChecklist.circuitLabelsOk, "Obecność czytelnych oznaczeń obwodów w rozdzielnicach"],
+              [meta.inspectionChecklist.peNmarkingsOk, "Prawidłowe oznakowanie zacisków i przewodów PE / N"],
+              [meta.inspectionChecklist.protectionMatchesWiring, "Prawidłowy dobór aparatury zabezpieczającej do przekrojów przewodów"],
+              [meta.inspectionChecklist.bondingVisualOk, "Wizualne potwierdzenie obecności i ciągłości połączeń wyrównawczych"],
+              [meta.inspectionChecklist.schematicsPresent, "Dostępność schematów strukturalnych (jednokreskowych)"],
+            ].map(([val, label], i) => (
+              <div key={i} className="flex items-start gap-3 p-3 hairline bg-panel/30 rounded-xl">
+                {val ? <CircleCheck size={18} className="text-ok shrink-0 mt-0.5" /> : <CircleX size={18} className="text-crit shrink-0 mt-0.5" />}
+                <span className="text-[13px] text-mist">{label as string}</span>
+              </div>
+            ))}
+          </div>
+          {meta.inspectionChecklist.notes && (
+            <p className="mt-4 text-[13px] text-dim p-4 hairline bg-abyss rounded-xl">
+              <strong>Uwagi wykonawcy:</strong> {meta.inspectionChecklist.notes}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* C. PODSUMOWANIE */}
       <section id="r-podsumowanie" className="rpt-sec">
-        <p className="rpt-sec-label">B · Podsumowanie wykonawcze</p>
+        <p className="rpt-sec-label">C · Podsumowanie wyników</p>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
           <Kpi label="Punkty pomiarowe" value={s.total} tone="#45e0ff" />
           <Kpi label="Spełniają kryteria" value={s.ok} tone="#49dd8a" />
@@ -403,16 +434,16 @@ export function ReportView({
         </p>
       </section>
 
-      {/* C. WYNIKI — tabela interaktywna */}
+      {/* D. WYNIKI — tabela interaktywna */}
       <section id="r-wyniki" className="rpt-sec">
-        <p className="rpt-sec-label">C · Wyniki pomiarów</p>
+        <p className="rpt-sec-label">D · Wyniki pomiarów</p>
         <ResultsTable points={analysis.points} history={history} />
       </section>
 
-      {/* D. WYKRESY */}
+      {/* E. WYKRESY */}
       <section id="r-wykresy" className="rpt-sec">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="rpt-sec-label flex-1">D · Wizualizacja wyników</p>
+          <p className="rpt-sec-label flex-1">E · Wizualizacja wyników</p>
           <label className="no-print inline-flex items-center gap-2 text-[12px] text-dim cursor-pointer select-none">
             <input
               type="checkbox"
@@ -426,15 +457,15 @@ export function ReportView({
         <ReportCharts analysis={analysis} animations={animationsOn && !reduced} />
       </section>
 
-      {/* E. ANALIZA (Moduł B — AI / regułowy) */}
+      {/* F. ANALIZA (Moduł B — AI / regułowy) */}
       <section id="r-analiza" className="rpt-sec">
-        <p className="rpt-sec-label">E · Analiza i interpretacja</p>
+        <p className="rpt-sec-label">F · Analiza i interpretacja</p>
         <AiAnalysis analysis={analysis} />
       </section>
 
-      {/* F–G. OSTRZEŻENIA I ZALECENIA */}
+      {/* G–H. OSTRZEŻENIA I ZALECENIA */}
       <section id="r-ostrzezenia" className="rpt-sec">
-        <p className="rpt-sec-label">F–G · Ostrzeżenia i zalecenia</p>
+        <p className="rpt-sec-label">G–H · Ostrzeżenia i zalecenia</p>
         <FindingsPanel
           findings={analysis.findings}
           pushAudit={pushAudit}
@@ -445,20 +476,20 @@ export function ReportView({
         />
       </section>
 
-      {/* H–I. HISTORIA + PROGNOZA (Smart Compare+) */}
+      {/* I–J. HISTORIA + PROGNOZA (Smart Compare+) */}
       {history && history.length > 0 && (
         <section id="r-historia" className="rpt-sec">
           <div className="flex items-center gap-3">
-            <p className="rpt-sec-label flex-1">H–I · Historia pomiarów · Smart Compare+</p>
+            <p className="rpt-sec-label flex-1">I–J · Historia pomiarów · Smart Compare+</p>
             <span className="badge st-info">Porównanie serii</span>
           </div>
           <SmartCompare analysis={analysis} history={history} animations={animationsOn && !reduced} />
         </section>
       )}
 
-      {/* J–K. OCENA KOŃCOWA + PODPIS */}
+      {/* K. OCENA KOŃCOWA + PODPIS */}
       <section id="r-ocena" className="rpt-sec">
-        <p className="rpt-sec-label">J · Ocena końcowa — zatwierdzenie wykonawcy</p>
+        <p className="rpt-sec-label">K · Ocena końcowa — zatwierdzenie wykonawcy</p>
         <ApprovalPanel
           meta={meta}
           analysis={analysis}
@@ -471,13 +502,13 @@ export function ReportView({
       </section>
 
       <section id="r-podpis" className="rpt-sec">
-        <p className="rpt-sec-label">K · Podpis</p>
+        <p className="rpt-sec-label">L · Podpis</p>
         <SignatureBlock meta={meta} />
       </section>
 
-      {/* L. ŹRÓDŁA DANYCH */}
+      {/* M. ŹRÓDŁA DANYCH */}
       <section id="r-zrodla" className="rpt-sec">
-        <p className="rpt-sec-label">L · Źródła danych i integralność</p>
+        <p className="rpt-sec-label">M · Źródła danych i przyrządy</p>
         <div className="grid lg:grid-cols-[1fr_auto] gap-8 mt-6 items-start">
           <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
             {[
@@ -492,7 +523,25 @@ export function ReportView({
                 <dd className="text-[13.5px] text-mist mt-1 break-words">{v}</dd>
               </div>
             ))}
-            <div className="sm:col-span-2">
+            {meta.instrumentsDetails?.length ? (
+              <div className="sm:col-span-2 mt-4">
+                <dt className="font-mono text-[10px] tracking-[0.2em] text-faint uppercase mb-3">Przyrządy pomiarowe</dt>
+                <div className="grid gap-2">
+                  {meta.instrumentsDetails.map((inst, i) => (
+                    <div key={i} className="flex justify-between items-center bg-panel2 p-3 rounded-lg hairline">
+                      <div>
+                        <span className="font-bold text-mist text-[13px]">{inst.name}</span>
+                        <span className="text-dim text-[12px] ml-2">SN: {inst.serialNo}</span>
+                      </div>
+                      <div className="text-right text-[11px] text-faint">
+                        Wzorcowanie: {inst.calibrationNo} (ważne do {inst.calibrationValidUntil})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="sm:col-span-2 mt-4">
               <dt className="font-mono text-[10px] tracking-[0.2em] text-faint uppercase flex items-center gap-2">
                 <Database size={12} aria-hidden /> Hash SHA-256 zbioru danych
               </dt>
