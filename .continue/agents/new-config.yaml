@@ -6,7 +6,7 @@ models:
   - name: gemini-3.6-flash
     title: Google Gemini 3.6 Flash (Darmowy)
     provider: google
-    apiKey: ${AQ.Ab8RN6IGlEypRGFhVy8rZYV84RKnEJE3Rd1fRwzMjLW4n0mw5g}
+    apiKey: ${GEMINI_API_KEY}
 
 slashCommands:
   - name: git
