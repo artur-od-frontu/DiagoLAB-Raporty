@@ -86,14 +86,18 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 3s --health-retries 20
 
+    # Przekazujemy DATABASE_URL globalnie dla całego joba E2E
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/app_db
       CI: "true"
 
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with: 
+          node-version: 22
+          cache: npm
 
       - name: Pobranie gotowego buildu Next.js
         uses: actions/download-artifact@v4
@@ -103,7 +107,7 @@ jobs:
       - name: Instalacja zależności produkcyjnych
         run: npm ci
 
-      - name: Weryfikacja spójności schematu Drizzle (Zabezpieczenie przed dryfem)
+      - name: Weryfikacja spójności schematu Drizzle (Zabezpieczenie przed dryfem AWS Data API)
         run: npx drizzle-kit check
 
       - name: Aplikowanie schematu bazy danych
