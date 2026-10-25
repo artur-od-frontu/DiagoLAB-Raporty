@@ -86,7 +86,6 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 3s --health-retries 20
 
-    # Przekazujemy DATABASE_URL globalnie dla całego joba E2E
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/app_db
       CI: "true"
@@ -107,8 +106,8 @@ jobs:
       - name: Instalacja zależności produkcyjnych
         run: npm ci
 
-      - name: Weryfikacja spójności schematu Drizzle (Zabezpieczenie przed dryfem AWS Data API)
-        run: npx drizzle-kit check
+      - name: Weryfikacja spójności schematu Drizzle (Wymuszenie inline)
+        run: DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/app_db npx drizzle-kit check
 
       - name: Aplikowanie schematu bazy danych
         run: npx drizzle-kit push
