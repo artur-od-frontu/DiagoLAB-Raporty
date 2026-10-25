@@ -45,20 +45,10 @@ jobs:
       - name: Testy jednostkowe (Vitest)
         run: npx vitest run --reporter=dot
 
-      - name: Build produkcyjny
+      - name: Build produkcyjny (Weryfikacja kompilacji)
         run: npm run build
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/build_placeholder
-
-      - name: Upload skompilowanej aplikacji (Oszczędność czasu dla E2E)
-        uses: actions/upload-artifact@v4
-        with:
-          name: next-build
-          path: |
-            .next
-            package.json
-            package-lock.json
-          retention-days: 1
 
       - name: Weryfikacja sekretów (gitleaks-style quick scan)
         run: |
@@ -98,12 +88,15 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Pobranie gotowego buildu Next.js
-        uses: actions/download-artifact@v4
+      - name: Keszowanie cache budowania Next.js (Dla oszczędności czasu w E2E)
+        uses: actions/cache@v4
         with:
-          name: next-build
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
 
-      - name: Instalacja zależności produkcyjnych
+      - name: Instalacja zależności
         run: npm ci
 
       - name: Weryfikacja spójności schematu Drizzle
@@ -111,6 +104,9 @@ jobs:
 
       - name: Aplikowanie schematu bazy danych
         run: npx drizzle-kit push
+
+      - name: Świeży build produkcyjny pod testy E2E (Zabezpieczenie przed brakiem buildu)
+        run: npm run build
 
       - name: Pobranie wersji Playwright ze środowiska
         id: playwright-version
