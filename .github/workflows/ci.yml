@@ -106,8 +106,8 @@ jobs:
       - name: Instalacja zależności produkcyjnych
         run: npm ci
 
-      - name: Weryfikacja spójności schematu Drizzle (Wymuszenie inline)
-        run: DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/app_db npx drizzle-kit check
+      - name: Weryfikacja spójności schematu Drizzle
+        run: npx drizzle-kit check
 
       - name: Aplikowanie schematu bazy danych
         run: npx drizzle-kit push
